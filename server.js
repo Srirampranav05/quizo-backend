@@ -1,72 +1,56 @@
 import express from "express";
-import bcrypt from "bcryptjs";
 import cors from "cors";
 import dotenv from "dotenv";
 import pkg from "pg";
 
-dotenv.config(); // ✅ Load environment variables
-
+dotenv.config();
 const { Pool } = pkg;
 
-// ✅ PostgreSQL Database Connection (Supabase / NeonDB)
+// ✅ PostgreSQL Database Connection
 const pool = new Pool({
   connectionString: process.env.DB_URL,
-  ssl: { rejectUnauthorized: false }, // ✅ Required for cloud-hosted DBs
+  ssl: { rejectUnauthorized: false }, // ✅ Required for Supabase
 });
 
-// ✅ Express App Initialization
 const app = express();
 app.use(express.json());
-app.use(cors({ credentials: true, origin: "http://localhost:5173" })); // ✅ Adjust for production
-
-/* =====================================
-   🔹 TEST DATABASE CONNECTION ROUTE
-   ===================================== */
-app.get("/", async (req, res) => {
-  try {
-    const result = await pool.query("SELECT NOW()"); // ✅ Simple test query
-    res.json({ message: "Connected to database!", timestamp: result.rows[0].now });
-  } catch (err) {
-    console.error("🔥 Database Connection Error:", err.message);
-    res.status(500).json({ error: "Database connection failed" });
-  }
-});
+app.use(cors({ credentials: true, origin: "http://localhost:5173" })); // ✅ Adjust for deployment
 
 /* =====================================
    🔹 ADMIN AUTHENTICATION ROUTES
    ===================================== */
 
-// ✅ Admin Login
+// ✅ Admin Login (No Hashing)
 app.post("/admin-login", async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // 🔹 Check if admin exists
     const result = await pool.query("SELECT * FROM admin WHERE email = $1", [email]);
 
     if (result.rows.length === 0) {
-      console.warn("❌ Admin Not Found:", email);
+      console.log("❌ Admin not found in DB");
       return res.status(403).json({ message: "Admin not found" });
     }
 
-    const storedHashedPassword = result.rows[0].password;
-    console.log("🔹 Entered Password:", password);
+    const storedPassword = result.rows[0].password;
 
-    // 🔹 Compare Passwords
-    const isMatch = await bcrypt.compare(password, storedHashedPassword);
-    console.log("✅ Password Match:", isMatch);
-
-    if (isMatch) {
+    // 🔹 Directly compare passwords without hashing
+    if (password === storedPassword) {
       res.json({ message: "Login successful!", admin: true, token: "dummy_token" });
     } else {
-      console.warn("❌ Incorrect Password for:", email);
+      console.log("❌ Incorrect Password");
       res.status(400).json({ message: "Incorrect password" });
     }
   } catch (err) {
     console.error("🔥 Server Error:", err.message);
-    res.status(500).json({ error: "Server error during login" });
+    res.status(500).json({ error: err.message });
   }
 });
+
+/* =====================================
+   🔹 START SERVER
+   ===================================== */
+app.listen(5000, () => console.log("🔥 Server running on port 5000"));
 
 /* =====================================
    🔹 QUIZZES CRUD (Create, Read, Update, Delete) 
@@ -190,5 +174,5 @@ app.delete("/question/:id", async (req, res) => {
 /* =====================================
    🔹 START SERVER 
    ===================================== */
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => console.log(`🔥 Server running on port ${PORT}`));
