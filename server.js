@@ -30,12 +30,16 @@ app.post("/admin-login", async (req, res) => {
     const result = await pool.query("SELECT * FROM admin WHERE email = $1", [email]);
 
     if (result.rows.length === 0) {
+      console.log("❌ Admin not found in DB");
       return res.status(403).json({ message: "Admin not found" });
     }
 
     const storedHashedPassword = result.rows[0].password;
+    console.log("🔹 Stored Hashed Password:", storedHashedPassword);
+    console.log("🔹 Entered Password:", password);
+
     const isMatch = await bcrypt.compare(password, storedHashedPassword);
-    console.log("Password Match:", isMatch); // ✅ Debugging
+    console.log("✅ Password Match:", isMatch);
 
     if (isMatch) {
       res.json({ message: "Login successful!", admin: true, token: "dummy_token" });
@@ -43,9 +47,11 @@ app.post("/admin-login", async (req, res) => {
       res.status(400).json({ message: "Incorrect password" });
     }
   } catch (err) {
+    console.error("🔥 Server Error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
+
 
 /* =====================================
    🔹 QUIZZES CRUD (Create, Read, Update, Delete) 
