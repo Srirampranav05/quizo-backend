@@ -8,15 +8,29 @@ dotenv.config(); // ✅ Load environment variables
 
 const { Pool } = pkg;
 
-// ✅ PostgreSQL Database Connection (NeonDB)
+// ✅ PostgreSQL Database Connection (Supabase / NeonDB)
 const pool = new Pool({
   connectionString: process.env.DB_URL,
-  ssl: { rejectUnauthorized: false }, // ✅ Required for NeonDB
+  ssl: { rejectUnauthorized: false }, // ✅ Required for cloud-hosted DBs
 });
 
+// ✅ Express App Initialization
 const app = express();
 app.use(express.json());
-app.use(cors({ credentials: true, origin: "http://localhost:5173" })); // ✅ Adjust for deployment
+app.use(cors({ credentials: true, origin: "http://localhost:5173" })); // ✅ Adjust for production
+
+/* =====================================
+   🔹 TEST DATABASE CONNECTION ROUTE
+   ===================================== */
+app.get("/", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT NOW()"); // ✅ Simple test query
+    res.json({ message: "Connected to database!", timestamp: result.rows[0].now });
+  } catch (err) {
+    console.error("🔥 Database Connection Error:", err.message);
+    res.status(500).json({ error: "Database connection failed" });
+  }
+});
 
 /* =====================================
    🔹 ADMIN AUTHENTICATION ROUTES
@@ -27,34 +41,32 @@ app.post("/admin-login", async (req, res) => {
   const { email, password } = req.body;
 
   try {
+    // 🔹 Check if admin exists
     const result = await pool.query("SELECT * FROM admin WHERE email = $1", [email]);
 
     if (result.rows.length === 0) {
-      console.log("❌ Admin not found in DB");
+      console.warn("❌ Admin Not Found:", email);
       return res.status(403).json({ message: "Admin not found" });
     }
 
     const storedHashedPassword = result.rows[0].password;
-    console.log("🔹 Stored Hashed Password:", storedHashedPassword);
     console.log("🔹 Entered Password:", password);
 
-    // 🛠 Force Hashing Before Comparing
+    // 🔹 Compare Passwords
     const isMatch = await bcrypt.compare(password, storedHashedPassword);
     console.log("✅ Password Match:", isMatch);
 
     if (isMatch) {
       res.json({ message: "Login successful!", admin: true, token: "dummy_token" });
     } else {
-      console.log("❌ Incorrect Password");
+      console.warn("❌ Incorrect Password for:", email);
       res.status(400).json({ message: "Incorrect password" });
     }
   } catch (err) {
     console.error("🔥 Server Error:", err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Server error during login" });
   }
 });
-
-
 
 /* =====================================
    🔹 QUIZZES CRUD (Create, Read, Update, Delete) 
@@ -70,7 +82,8 @@ app.post("/quiz", async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("🔥 Quiz Creation Error:", err.message);
+    res.status(500).json({ error: "Failed to create quiz" });
   }
 });
 
@@ -80,7 +93,8 @@ app.get("/quizzes", async (req, res) => {
     const result = await pool.query("SELECT * FROM quizzes");
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("🔥 Fetch Quizzes Error:", err.message);
+    res.status(500).json({ error: "Failed to retrieve quizzes" });
   }
 });
 
@@ -95,7 +109,8 @@ app.put("/quiz/:id", async (req, res) => {
     );
     res.json({ message: "Quiz updated successfully!" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("🔥 Quiz Update Error:", err.message);
+    res.status(500).json({ error: "Failed to update quiz" });
   }
 });
 
@@ -106,7 +121,8 @@ app.delete("/quiz/:id", async (req, res) => {
     await pool.query("DELETE FROM quizzes WHERE id = $1", [id]);
     res.json({ message: "Quiz deleted successfully!" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("🔥 Quiz Deletion Error:", err.message);
+    res.status(500).json({ error: "Failed to delete quiz" });
   }
 });
 
@@ -126,7 +142,8 @@ app.post("/quiz/:quizId/questions", async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("🔥 Question Creation Error:", err.message);
+    res.status(500).json({ error: "Failed to add question" });
   }
 });
 
@@ -137,7 +154,8 @@ app.get("/quiz/:quizId/questions", async (req, res) => {
     const result = await pool.query("SELECT * FROM questions WHERE quiz_id = $1", [quizId]);
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("🔥 Fetch Questions Error:", err.message);
+    res.status(500).json({ error: "Failed to retrieve questions" });
   }
 });
 
@@ -152,7 +170,8 @@ app.put("/question/:id", async (req, res) => {
     );
     res.json({ message: "Question updated successfully!" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("🔥 Question Update Error:", err.message);
+    res.status(500).json({ error: "Failed to update question" });
   }
 });
 
@@ -163,11 +182,13 @@ app.delete("/question/:id", async (req, res) => {
     await pool.query("DELETE FROM questions WHERE id = $1", [id]);
     res.json({ message: "Question deleted successfully!" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("🔥 Question Deletion Error:", err.message);
+    res.status(500).json({ error: "Failed to delete question" });
   }
 });
 
 /* =====================================
    🔹 START SERVER 
    ===================================== */
-app.listen(5000, () => console.log("🔥 Server running on port 5000"));
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🔥 Server running on port ${PORT}`));
