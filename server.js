@@ -38,12 +38,14 @@ app.post("/admin-login", async (req, res) => {
     console.log("🔹 Stored Hashed Password:", storedHashedPassword);
     console.log("🔹 Entered Password:", password);
 
+    // 🛠 Force Hashing Before Comparing
     const isMatch = await bcrypt.compare(password, storedHashedPassword);
     console.log("✅ Password Match:", isMatch);
 
     if (isMatch) {
       res.json({ message: "Login successful!", admin: true, token: "dummy_token" });
     } else {
+      console.log("❌ Incorrect Password");
       res.status(400).json({ message: "Incorrect password" });
     }
   } catch (err) {
@@ -51,6 +53,7 @@ app.post("/admin-login", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 /* =====================================
